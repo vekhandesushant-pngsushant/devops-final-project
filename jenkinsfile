@@ -8,7 +8,7 @@ pipeline {
 
         ECR_REPOSITORY = 'devops-final-project'
 
-        ECR_REGISTRY = 'YOUR_AWS_ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com'
+        ECR_REGISTRY = '946877383530.dkr.ecr.ap-south-1.amazonaws.com/devops-final-project'
 
         IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}"
 
