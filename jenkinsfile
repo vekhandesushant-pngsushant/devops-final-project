@@ -1,173 +1,96 @@
 pipeline {
+agent any
 
-    agent any
+```
+environment {
+    AWS_REGION = 'ap-south-1'
+    ECR_REPOSITORY = 'devops-final-project'
+    ECR_REGISTRY = '946877383530.dkr.ecr.ap-south-1.amazonaws.com'
+    IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}"
+    EKS_CLUSTER = 'devops-final-cluster'
+}
 
-    environment {
-
-        AWS_REGION = 'ap-south-1'
-
-        ECR_REPOSITORY = 'devops-final-project'
-
-        ECR_REGISTRY = '946877383530.dkr.ecr.ap-south-1.amazonaws.com/devops-final-project'
-
-        IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}"
-
-        EKS_CLUSTER = 'devops-final-cluster'
-
+stages {
+    stage('Checkout') {
+        steps {
+            checkout scm
+        }
     }
 
-    stages {
-
-        stage('Checkout') {
-
-            steps {
-
-                checkout scm
-
-            }
-
+    stage('Application Test') {
+        steps {
+            echo 'Checking application files...'
+            sh '''
+                test -f index.html
+                test -f style.css
+                test -f script.js
+            '''
         }
-
-
-        stage('Application Test') {
-
-            steps {
-
-                echo 'Running application tests...'
-
-                sh '''
-                    test -f index.html
-                    test -f style.css
-                    test -f script.js
-                '''
-
-            }
-
-        }
-
-
-        stage('Docker Build') {
-
-            steps {
-
-                sh """
-                    docker build \
-                    -t ${IMAGE_NAME}:${BUILD_NUMBER} .
-                """
-
-            }
-
-        }
-
-
-       
-
-
-        stage('Login to ECR') {
-
-            steps {
-
-                sh """
-                    aws ecr get-login-password \
-                    --region ${AWS_REGION} |
-                    docker login \
-                    --username AWS \
-                    --password-stdin ${ECR_REGISTRY}
-                """
-
-            }
-
-        }
-
-
-        stage('Push Image') {
-
-            steps {
-
-                sh """
-                    docker push \
-                    ${IMAGE_NAME}:${BUILD_NUMBER}
-                """
-
-            }
-
-        }
-
-
-        stage('Deploy to EKS') {
-
-            steps {
-
-                sh """
-                    aws eks update-kubeconfig \
-                    --region ${AWS_REGION} \
-                    --name ${EKS_CLUSTER}
-                """
-
-                sh """
-
-                    sed -i \
-                    "s|YOUR_ECR_IMAGE_URI|${IMAGE_NAME}:${BUILD_NUMBER}|g" \
-                    k8s/deployment.yaml
-
-                """
-
-                sh """
-
-                    kubectl apply \
-                    -f k8s/
-
-                """
-
-            }
-
-        }
-
-
-        stage('Deployment Verification') {
-
-            steps {
-
-                sh """
-
-                    kubectl rollout status \
-                    deployment/devops-frontend
-
-                """
-
-                sh """
-
-                    kubectl get pods
-
-                """
-
-                sh """
-
-                    kubectl get svc
-
-                """
-
-            }
-
-        }
-
     }
 
-
-    post {
-
-        success {
-
-            echo 'Deployment successful!'
-
+    stage('Docker Build') {
+        steps {
+            sh '''
+                docker build -t "$IMAGE_NAME:$BUILD_NUMBER" .
+            '''
         }
-
-        failure {
-
-            echo 'Pipeline failed. Check Jenkins logs.'
-
-        }
-
     }
+
+    stage('Login to ECR') {
+        steps {
+            sh '''
+                aws ecr get-login-password --region "$AWS_REGION" |
+                docker login --username AWS --password-stdin "$ECR_REGISTRY"
+            '''
+        }
+    }
+
+    stage('Push Image to ECR') {
+        steps {
+            sh '''
+                docker push "$IMAGE_NAME:$BUILD_NUMBER"
+            '''
+        }
+    }
+
+    stage('Deploy to EKS') {
+        steps {
+            sh '''
+                aws eks update-kubeconfig \
+                    --region "$AWS_REGION" \
+                    --name "$EKS_CLUSTER"
+
+                kubectl apply -f k8s/deployment.yaml
+                kubectl set image deployment/devops-frontend \
+                    frontend="$IMAGE_NAME:$BUILD_NUMBER"
+
+                kubectl apply -f k8s/service.yaml
+                kubectl apply -f k8s/ingress.yaml
+            '''
+        }
+    }
+
+    stage('Deployment Verification') {
+        steps {
+            sh '''
+                kubectl rollout status deployment/devops-frontend --timeout=180s
+                kubectl get pods
+                kubectl get services
+                kubectl get ingress
+            '''
+        }
+    }
+}
+
+post {
+    success {
+        echo 'Deployment successful!'
+    }
+
+    failure {
+        echo 'Pipeline failed. Check the Jenkins Console Output.'
+    }
+}
+```
 
 }
