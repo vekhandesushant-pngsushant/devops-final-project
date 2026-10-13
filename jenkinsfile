@@ -1,7 +1,6 @@
 pipeline {
 agent any
 
-```
 environment {
     AWS_REGION = 'ap-south-1'
     ECR_REPOSITORY = 'devops-final-project'
@@ -91,6 +90,5 @@ post {
         echo 'Pipeline failed. Check the Jenkins Console Output.'
     }
 }
-```
 
 }
